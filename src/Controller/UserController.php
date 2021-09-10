@@ -21,11 +21,6 @@ class UserController extends AbstractController
             ->getQuery()
             ->getArrayResult();
 
-        $response = $this->json($users);
-
-        $cookie = new Cookie('access_token', $this->getUser()->getAccessToken()->getToken());
-        $response->headers->setCookie($cookie);
-
-        return $response;
+        return $this->json($users);
     }
 }

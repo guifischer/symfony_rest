@@ -3,6 +3,8 @@
 namespace App\Security;
 
 use App\Entity\AccessToken;
+use App\Entity\User;
+use DateTime;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,21 +28,26 @@ class ApiAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): ?bool
     {
-        return $request->headers->has('Authorization');
+        return $request->headers->has('authorization');
     }
 
     public function authenticate(Request $request): PassportInterface
     {
-        $token = $request->headers->get('Authorization');
-        $accessToken = $this->entityManager->getRepository(AccessToken::class)->findOneBy(array('token' => $token));
-
-        if (null === $accessToken) {
+        $token = $request->headers->get('authorization');
+        
+        $user = new UserBadge($token, function ($userIdentifier) {
+            return $this->entityManager->getRepository(User::class)->findOneBy(array('token' => $userIdentifier));
+        });
+        
+        if (null === $user) {
             throw new CustomUserMessageAuthenticationException('API token not found or with wrong credentials');
         }
+        
+        if (new DateTime() > $user->getUser()->getExpiresAt()) {
+            throw new CustomUserMessageAuthenticationException('API token expired');
+        }
 
-        $email = $accessToken->getUser()->getEmail();
-
-        return new SelfValidatingPassport(new UserBadge($email));
+        return new SelfValidatingPassport($user);
     }
 
     public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response

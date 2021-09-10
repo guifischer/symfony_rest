@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Entity\AccessToken;
 use App\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -33,7 +32,10 @@ class AuthController extends AbstractController
 
         $this->createAccessToken($user);
 
-        return $this->json($user->getAccessToken()->getToken());
+        return $this->json([
+            "token" => $user->getToken(),
+            "refresh_token" => $user->getRefreshToken(),
+        ]);
     }
 
     /**
@@ -42,25 +44,52 @@ class AuthController extends AbstractController
     public function logout()
     {
         $user = $this->getUser();
+        $user->eraseCredentials();
         
-        $entityManager = $this->getDoctrine()->getEntityManager();
-        $entityManager->remove($user->getAccessToken());
+        $entityManager = $this->getDoctrine()->getManager();
+        $entityManager->persist($user);
         $entityManager->flush();
+
+        return $this->json($user->getToken());
+    }
+
+    /**
+     * @Route("/refresh", name="app_refresh")
+     */
+    public function refresh(Request $request)
+    {
+        $content = json_decode($request->getContent());
+        $refresh_token = $content->refresh_token ?? null;
+        $token = $content->token ?? null;
+
+        $user = $this->getDoctrine()
+                ->getRepository(User::class)
+                ->findOneBy(array('token' => $token));
+
+        if (($refresh_token == null && $token == null) || $user == null || $user->getRefreshToken() != $refresh_token) {
+            return $this->wrongCredentials();
+        }
+        
+        $this->createAccessToken($user);
+
+        return $this->json([
+                    "token" => $user->getToken(),
+                    "refresh_token" => $user->getRefreshToken(),
+                ]);
     }
 
     protected function createAccessToken(User $user)
     {
         $entityManager = $this->getDoctrine()->getManager();
-
-        if ($user->getAccessToken() != null) {
-            $entityManager->remove($user->getAccessToken());
-            $entityManager->flush();
-        }
         
-        $access_token = new AccessToken($user);
-        $user->setAccessToken($access_token);
-
-        $entityManager->persist($access_token);
+        $token = bin2hex(random_bytes(60));
+        $expiresAt = new \DateTime('+1 day');
+        $refresh_token = bin2hex(random_bytes(60));
+        
+        $user->setToken($token);
+        $user->setExpiresAt($expiresAt);
+        $user->setRefreshToken($refresh_token);
+        $entityManager->persist($user);
         $entityManager->flush();
     }
 

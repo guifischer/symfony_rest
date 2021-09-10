@@ -37,11 +37,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      * @ORM\Column(type="string")
      */
     private $password;
+    
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $token;
 
     /**
-     * @ORM\OneToOne(targetEntity=AccessToken::class, mappedBy="user", cascade={"persist", "remove"})
+     * @ORM\Column(type="datetime", nullable=true)
      */
-    private $accessToken;
+    private $expiresAt;
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=true)
+     */
+    private $refreshToken;
 
     public function getId(): ?int
     {
@@ -129,22 +139,43 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function eraseCredentials()
     {
         // If you store any temporary, sensitive data on the user, clear it here
-        // $this->plainPassword = null;
+        $this->token = null;
+        $this->expiresAt = null;
+        $this->refreshToken = null;
     }
 
-    public function getAccessToken(): ?AccessToken
+    public function getToken(): ?string
     {
-        return $this->accessToken;
+        return $this->token;
     }
 
-    public function setAccessToken(AccessToken $accessToken): self
+    public function setToken(): self
     {
-        // set the owning side of the relation if necessary
-        if ($accessToken->getUser() !== $this) {
-            $accessToken->setUser($this);
-        }
+        $this->token = bin2hex(random_bytes(60));
 
-        $this->accessToken = $accessToken;
+        return $this;
+    }
+
+    public function getExpiresAt(): ?\DateTime
+    {
+        return $this->expiresAt;
+    }
+
+    public function setExpiresAt(): self
+    {
+        $this->expiresAt = new \DateTime('+1 day');
+
+        return $this;
+    }
+
+    public function getRefreshToken(): ?string
+    {
+        return $this->refreshToken;
+    }
+
+    public function setRefreshToken(): self
+    {
+        $this->refreshToken = bin2hex(random_bytes(60));
 
         return $this;
     }
